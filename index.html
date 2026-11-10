@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Browser-Demos — 0 Installation, 100% im Browser</title>
+<style>
+  :root{ --bg:#07070d; --fg:#e8e8f2; --dim:#8a8aa3; --acc:#ff7a18; }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ background:radial-gradient(1200px 800px at 70% -10%, #1a1030 0%, var(--bg) 55%); color:var(--fg); font-family:"Segoe UI",system-ui,sans-serif; min-height:100vh; padding:48px 24px; }
+  h1{ font-size:clamp(28px,5vw,52px); letter-spacing:-1px; }
+  h1 span{ color:var(--acc); }
+  p.sub{ color:var(--dim); margin:10px 0 36px; max-width:680px; line-height:1.5; }
+  .grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; max-width:1150px; }
+  a.card{ display:block; text-decoration:none; color:inherit; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.09); border-radius:16px; padding:22px; transition:transform .18s, border-color .18s, background .18s; }
+  a.card:hover{ transform:translateY(-4px); border-color:var(--acc); background:rgba(255,122,24,.08); }
+  .num{ font-size:13px; color:var(--acc); font-weight:700; letter-spacing:2px; }
+  h2{ margin:8px 0 6px; font-size:20px; }
+  p.d{ color:var(--dim); font-size:14px; line-height:1.5; }
+  p.k{ margin-top:12px; font-size:12px; color:#6d6d88; font-family:ui-monospace,monospace; }
+  footer{ margin-top:40px; color:#55556e; font-size:12px; }
+</style>
+</head>
+<body>
+<h1>Vier Demos <span>— direkt im Browser, nichts installiert</span></h1>
+<p class="sub">Vier eigenständige HTML-Dateien, reines HTML/CSS/JS ohne Abhängigkeiten. Lokal einfach doppelklicken (funktioniert offline per file://) oder über GitHub Pages hosten und per URL öffnen. Fürs Video: Vollbild mit F11.</p>
+<div class="grid">
+  <a class="card" href="shader.html"><div class="num">01</div><h2>Raymarching-Shader</h2><p class="d">Echtzeit-3D per WebGL-Fragment-Shader: leuchtender Knoten in Neon-Nebel, weiches Shading, Kamera folgt der Maus.</p><p class="k">Maus bewegen = Kamera</p></a>
+  <a class="card" href="particles.html"><div class="num">02</div><h2>Particle Life</h2><p class="d">1.400 Partikel, simple Regeln, emergente lebendige Strukturen — ein Mini-Ökosystem, das sich ständig neu organisiert.</p><p class="k">Klick = Impuls · R = neues Regel-Set · +/- = Arten · Leertaste = Pause</p></a>
+  <a class="card" href="audio.html"><div class="num">03</div><h2>Audio-Visualizer</h2><p class="d">Ein kompletter Synthwave-Track wird live im Browser generiert (Web Audio API) und als radiales Spektrum mit Beat-Pulsen visualisiert.</p><p class="k">Play drücken · 3 Tracks wählbar · optional Mikrofon</p></a>
+  <a class="card" href="brain.html"><div class="num">04</div><h2>Live Neural Net</h2><p class="d">Ein neuronales Netz trainiert sich in Echtzeit sichtbar mit: Entscheidungsgrenze und Genauigkeit wachsen vor deinen Augen.</p><p class="k">Datensatz wählen · Netz neu starten</p></a>
+</div>
+<footer>Keine Build-Schritte, kein Server, keine externen Ressourcen — jede Datei läuft für sich.</footer>
+</body>
+</html>

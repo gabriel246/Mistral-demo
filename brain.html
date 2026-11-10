@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>04 · Live Neural Net</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0a14;color:#e8e8f2;font-family:"Segoe UI",system-ui,sans-serif;}
+  body{display:flex;align-items:center;justify-content:center;min-height:100vh;gap:28px;flex-wrap:wrap;padding:24px;box-sizing:border-box;}
+  a{position:fixed;top:12px;left:14px;color:#ff7a18;text-decoration:none;font:12px ui-monospace,monospace;opacity:.85;}
+  canvas{background:#10101e;border:1px solid rgba(255,255,255,.1);border-radius:12px;max-width:92vw;max-height:82vh;}
+  #panel{width:250px;}
+  h1{font-size:20px;margin:0 0 4px;}
+  #stats{font:13px ui-monospace,monospace;color:#9aa0c0;line-height:1.9;margin:12px 0 18px;}
+  #stats b{color:#ffd9a8;font-weight:600;}
+  .btns{display:flex;flex-direction:column;gap:8px;}
+  button{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.15);color:#e8e8f2;font:13px ui-monospace,monospace;padding:8px 12px;border-radius:10px;cursor:pointer;text-align:left;}
+  button:hover{background:rgba(255,122,24,.22);border-color:#ff7a18;}
+  button.on{background:rgba(255,122,24,.35);border-color:#ff7a18;}
+  #legend{display:flex;gap:16px;margin-top:16px;font:12px ui-monospace,monospace;color:#9aa0c0;}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;}
+</style>
+</head>
+<body>
+<a href="index.html">← Übersicht</a>
+<canvas id="c" width="560" height="560"></canvas>
+<div id="panel">
+  <h1>Live Neural Net</h1>
+  <div id="stats"></div>
+  <div class="btns" id="ds"></div>
+  <div class="btns" style="margin-top:8px"><button id="reset">↺ Netz neu starten</button></div>
+  <div id="legend"><span><span class="dot" style="background:#ff7a18"></span>Klasse A</span><span><span class="dot" style="background:#4f7cff"></span>Klasse B</span></div>
+</div>
+<script>
+'use strict';
+
+function gauss(){
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+}
+
+function genData(name, n){
+  const pts = [];
+  const half = n / 2;
+  if (name === 'spirals'){
+    for (let c = 0; c < 2; c++)
+      for (let i = 0; i < half; i++){
+        const r = 0.10 + 0.40 * (i / half);
+        const a = (i / half) * Math.PI * 2.5 + c * Math.PI;
+        pts.push({ x: r * Math.cos(a) + gauss() * 0.02, y: r * Math.sin(a) + gauss() * 0.02, c });
+      }
+  } else if (name === 'moons'){
+    for (let c = 0; c < 2; c++)
+      for (let i = 0; i < half; i++){
+        const a = (i / half) * Math.PI;
+        const px = c === 0 ? 0.45 * Math.cos(a) : 0.45 * (0.5 - Math.cos(a)) - 0.0;
+        const py = c === 0 ? 0.45 * Math.sin(a) : 0.45 * (0.5 - Math.sin(a));
+        pts.push({ x: px + gauss() * 0.04, y: py + gauss() * 0.04, c });
+      }
+  } else if (name === 'circles'){
+    for (let i = 0; i < n; i++){
+      const a = Math.random() * 6.2832;
+      const c = Math.random() < 0.5 ? 0 : 1;
+      const r = c === 0 ? 0.25 * Math.sqrt(Math.random()) : 0.38 + 0.17 * Math.random();
+      pts.push({ x: r * Math.cos(a) + gauss() * 0.02, y: r * Math.sin(a) + gauss() * 0.02, c });
+    }
+  } else {
+    const centers = [[0.4, 0.4, 0], [-0.4, 0.4, 1], [-0.4, -0.4, 0], [0.4, -0.4, 1]];
+    for (let i = 0; i < n; i++){
+      const ctr = centers[(Math.random() * 4) | 0];
+      pts.push({ x: ctr[0] + gauss() * 0.13, y: ctr[1] + gauss() * 0.13, c: ctr[2] });
+    }
+  }
+  return pts;
+}
+
+function mat(rows, cols){
+  const d = new Float32Array(rows * cols);
+  const s = Math.sqrt(2 / cols);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * s;
+  return { d, r: rows, c: cols };
+}
+
+class MLP {
+  constructor(h){
+    h = h || 16;
+    this.h = h;
+    this.W1 = mat(h, 2);  this.b1 = new Float32Array(h);
+    this.W2 = mat(h, h);  this.b2 = new Float32Array(h);
+    this.W3 = mat(2, h);  this.b3 = new Float32Array(2);
+    this.z1 = new Float32Array(h); this.a1 = new Float32Array(h);
+    this.z2 = new Float32Array(h); this.a2 = new Float32Array(h);
+  }
+  forward(x0, x1){
+    const h = this.h, W1 = this.W1.d, b1 = this.b1, z1 = this.z1, a1 = this.a1;
+    for (let i = 0; i < h; i++){
+      z1[i] = W1[i * 2] * x0 + W1[i * 2 + 1] * x1 + b1[i];
+      a1[i] = Math.tanh(z1[i]);
+    }
+    const W2 = this.W2.d, b2 = this.b2, z2 = this.z2, a2 = this.a2;
+    for (let i = 0; i < h; i++){
+      let s = b2[i];
+      for (let j = 0; j < h; j++) s += W2[i * h + j] * a1[j];
+      z2[i] = s; a2[i] = Math.tanh(s);
+    }
+    const W3 = this.W3.d, b3 = this.b3;
+    let z00 = b3[0], z01 = b3[1];
+    for (let j = 0; j < h; j++){ z00 += W3[j] * a2[j]; z01 += W3[h + j] * a2[j]; }
+    const mx = Math.max(z00, z01);
+    const e0 = Math.exp(z00 - mx), e1 = Math.exp(z01 - mx);
+    const sum = e0 + e1;
+    this.p0 = e0 / sum; this.p1 = e1 / sum;
+    this.in0 = x0; this.in1 = x1;
+    return [this.p0, this.p1];
+  }
+  train(x0, x1, c, lr){
+    const [p0, p1] = this.forward(x0, x1);
+    const pc = c === 0 ? p0 : p1;
+    const loss = -Math.log(Math.max(pc, 1e-9));
+    const d0 = p0 - (c === 0 ? 1 : 0), d1 = p1 - (c === 1 ? 1 : 0);
+    const h = this.h, W2 = this.W2.d, W3 = this.W3.d, a1 = this.a1, a2 = this.a2;
+    const dz2 = new Float32Array(h);
+    for (let i = 0; i < h; i++){
+      const dh = W3[i] * d0 + W3[h + i] * d1;
+      dz2[i] = dh * (1 - a2[i] * a2[i]);
+    }
+    const dz1 = new Float32Array(h);
+    for (let i = 0; i < h; i++){
+      let s = 0;
+      for (let j = 0; j < h; j++) s += W2[j * h + i] * dz2[j];
+      dz1[i] = s * (1 - a1[i] * a1[i]);
+    }
+    for (let j = 0; j < h; j++){
+      this.W3[j]     -= lr * d0 * a2[j];
+      this.W3[h + j] -= lr * d1 * a2[j];
+    }
+    this.b3[0] -= lr * d0; this.b3[1] -= lr * d1;
+    for (let i = 0; i < h; i++){
+      for (let j = 0; j < h; j++) W2[i * h + j] -= lr * dz2[i] * a1[j];
+      this.b2[i] -= lr * dz2[i];
+    }
+    const W1 = this.W1.d;
+    for (let i = 0; i < h; i++){
+      W1[i * 2]     -= lr * dz1[i] * x0;
+      W1[i * 2 + 1] -= lr * dz1[i] * x1;
+      this.b1[i]    -= lr * dz1[i];
+    }
+    return loss;
+  }
+}
+
+function accuracy(net, data){
+  let ok = 0;
+  for (const p of data){
+    const pr = net.forward(p.x, p.y);
+    if ((pr[1] > 0.5 ? 1 : 0) === p.c) ok++;
+  }
+  return ok / data.length;
+}
+
+if (typeof window === 'undefined'){
+  const data = genData('spirals', 400);
+  const net = new MLP(32);
+  let loss = 0;
+  for (let it = 0; it < 60000; it++){
+    const p = data[(Math.random() * data.length) | 0];
+    loss = loss * 0.999 + net.train(p.x, p.y, p.c, 0.4) * 0.001;
+  }
+  const acc = accuracy(net, data);
+  console.log('headless selftest: loss=' + loss.toFixed(4) + ' accuracy=' + (acc * 100).toFixed(1) + '%');
+  process.exit(acc > 0.92 ? 0 : 1);
+}
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const stats = document.getElementById('stats');
+const dsBox = document.getElementById('ds');
+const S = canvas.width;
+const GRID = 110;
+const off = document.createElement('canvas');
+off.width = GRID; off.height = GRID;
+const octx = off.getContext('2d');
+const img = octx.createImageData(GRID, GRID);
+
+const DATASETS = ['spirals', 'moons', 'circles', 'blobs'];
+const LABELS = { spirals: 'Spiralen', moons: 'Monde', circles: 'Kreise', blobs: 'Wolken (XOR)' };
+let dataName = 'spirals';
+let data = genData(dataName, 400);
+let net = new MLP(32);
+let iter = 0, lossEma = 0.69, acc = 0;
+const C0 = [255, 122, 24], C1 = [79, 124, 255], BG = [14, 14, 26];
+
+DATASETS.forEach(name => {
+  const b = document.createElement('button');
+  b.textContent = LABELS[name];
+  if (name === dataName) b.classList.add('on');
+  b.addEventListener('click', () => {
+    dataName = name;
+    data = genData(name, 400);
+    net = new MLP(32);
+    iter = 0; lossEma = 0.69; acc = 0;
+    document.querySelectorAll('#ds button').forEach(x => x.classList.toggle('on', x === b));
+  });
+  dsBox.appendChild(b);
+});
+document.getElementById('reset').addEventListener('click', () => { net = new MLP(32); iter = 0; lossEma = 0.69; acc = 0; });
+
+function renderGrid(){
+  const px = img.data;
+  for (let gy = 0; gy < GRID; gy++){
+    const y = 1 - (gy + 0.5) / GRID * 2;
+    for (let gx = 0; gx < GRID; gx++){
+      const x = (gx + 0.5) / GRID * 2 - 1;
+      const pr = net.forward(x, y);
+      const t = pr[1];
+      const conf = Math.abs(t - 0.5) * 2;
+      const base = t < 0.5 ? C0 : C1;
+      const k = 0.25 + 0.75 * conf;
+      const o = (gy * GRID + gx) * 4;
+      px[o]     = BG[0] + (base[0] - BG[0]) * k;
+      px[o + 1] = BG[1] + (base[1] - BG[1]) * k;
+      px[o + 2] = BG[2] + (base[2] - BG[2]) * k;
+      px[o + 3] = 255;
+    }
+  }
+  octx.putImageData(img, 0, 0);
+}
+
+function draw(){
+  renderGrid();
+  ctx.imageSmoothingEnabled = true;
+  ctx.fillStyle = '#0e0e1c';
+  ctx.fillRect(0, 0, S, S);
+  ctx.drawImage(off, 0, 0, S, S);
+  for (const p of data){
+    const px = (p.x + 1) / 2 * S, py = (1 - p.y) / 2 * S;
+    ctx.beginPath();
+    ctx.arc(px, py, 4, 0, 6.2832);
+    ctx.fillStyle = p.c === 0 ? '#ff7a18' : '#4f7cff';
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.stroke();
+  }
+}
+
+function loop(){
+  for (let k = 0; k < 48; k++){
+    const p = data[(Math.random() * data.length) | 0];
+    const l = net.train(p.x, p.y, p.c, 0.4);
+    lossEma = lossEma * 0.995 + l * 0.005;
+    iter++;
+  }
+  if (iter % 30 < 48) acc = accuracy(net, data);
+  draw();
+  stats.innerHTML = 'Datensatz: <b>' + LABELS[dataName] + '</b><br>' +
+    'Schritte: <b>' + iter + '</b><br>' +
+    'Loss: <b>' + lossEma.toFixed(3) + '</b><br>' +
+    'Genauigkeit: <b>' + (acc * 100).toFixed(1) + '%</b>';
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
